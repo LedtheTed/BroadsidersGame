@@ -3,11 +3,6 @@ using UnityEngine;
 public class ShipMotor : MonoBehaviour
 {
 
-    [Header("Movement")]
-    [SerializeField] private float maxSpeed = 8f;
-    [SerializeField] private float acceleration = 6f;
-    [SerializeField] private float turnRateDegPerSec = 90f;
-
     [Header("Arrival")]
     [SerializeField] private float slowdownRadius = 12f;
     [SerializeField] private float stoppingDistance = 0.5f;
@@ -24,12 +19,46 @@ public class ShipMotor : MonoBehaviour
     [SerializeField] private float holdBrake = 20f;
 
     private Rigidbody rb;
-
+    private ShipState shipState;
+    
     private bool hasDestination = false;
     private Vector3 destination;
 
+    // movement stats (from ShipDefinition, then modified by multipliers/effects)
+    private float maxSpeed;
+    private float acceleration;
+    private float turnRateDegPerSec;
+
+    // runtime multipliers (for upgrades/status effects)
+    private float speedMult = 1f;
+    private float accelMult = 1f;
+    private float turnMult = 1f;
+
     private void Awake(){
         rb = GetComponent<Rigidbody>();
+        shipState = GetComponent<ShipState>();
+        RefreshStatsFromDefinition();
+    }
+
+    // pulls base movement stats from ShipDefinition and re-applies current multipliers.
+    // call this if we swap ShipDefinition at runtime (upgrades/transformations).
+    public void RefreshStatsFromDefinition(){
+        var def = shipState.Definition;
+        if (def == null){
+            Debug.LogError($"{name}: ShipMotor could not find ShipDefinition on ShipState.");
+            enabled = false;
+            return;
+        }
+
+        // base values come from definition
+        float baseMaxSpeed = def.maxSpeed;
+        float baseAcceleration = def.acceleration;
+        float baseTurnRate = def.turnRateDegPerSec;
+
+        // apply definition multipliers AND runtime multipliers
+        maxSpeed = baseMaxSpeed * def.maxSpeedMult * speedMult;
+        acceleration = baseAcceleration * def.accelMult * accelMult;
+        turnRateDegPerSec = baseTurnRate * def.turnRateMult * turnMult;
     }
 
     public void SetDestination(Vector3 worldPoint){
@@ -131,4 +160,14 @@ public class ShipMotor : MonoBehaviour
         holdMode = false;
         ClearSpeedLimit();
     }
+
+    // changes speed based on some effect
+    public void ApplyStatMultipliers(float newSpeedMult, float newAccelMult, float newTurnMult){
+        speedMult = Mathf.Max(0f, newSpeedMult);
+        accelMult = Mathf.Max(0f, newAccelMult);
+        turnMult = Mathf.Max(0f, newTurnMult);
+
+        RefreshStatsFromDefinition();
+    }
+
 }
