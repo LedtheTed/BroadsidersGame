@@ -6,14 +6,20 @@ using System.Linq;
 
 public class UnitSelectionController : MonoBehaviour
 {
+
+    // *********************************************
+    // HANDLES SELECTING UNITS IN GAME WITH RAYCAST
+    // SINGLE CLICK AND DRAG SELECT
+    // DOES NOT MOVE ANYTHING
+    // *********************************************
     
     [Header("References")]
-    [SerializeField] private SelectionManager selection;
-    [SerializeField] private Camera cam;
+    [SerializeField] private SelectionManager selection;            // access to selected list
+    [SerializeField] private Camera cam;                            // access to camer
 
     [Header("Raycast")]
-    [SerializeField] private LayerMask unitMask;
-    [SerializeField] private float maxRayDistance = 5000f;
+    [SerializeField] private LayerMask unitMask;                    // access to unit layer
+    [SerializeField] private float maxRayDistance = 5000f;          // arbitrary check distance
 
     [Header("Box Select")]
     [SerializeField] private float dragThresholdPx = 8f;
@@ -21,22 +27,26 @@ public class UnitSelectionController : MonoBehaviour
     private Vector2 dragStart;
     private bool isDragging;
 
+    // setup on start
     private void Awake(){
-        if (selection == null) selection = FindFirstObjectByType<SelectionManager>();
-        if (cam == null) cam = Camera.main;
+        if(selection == null) selection = FindFirstObjectByType<SelectionManager>();
+        if(cam == null) cam = Camera.main;
     }
 
+    // update function which happens every frame
     private void Update(){
         if (cam == null || selection == null) return;
         if (Mouse.current == null || Keyboard.current == null) return;
 
         bool shift = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
 
+        // if started to left click, set starting point of box
         if(Mouse.current.leftButton.wasPressedThisFrame){
             dragStart = Mouse.current.position.ReadValue();
             isDragging = false;
         }
 
+        // if still clicking we are dragging
         if(Mouse.current.leftButton.isPressed){
             Vector2 now = Mouse.current.position.ReadValue();
             if(!isDragging && Vector2.Distance(now, dragStart) > dragThresholdPx){
@@ -44,11 +54,12 @@ public class UnitSelectionController : MonoBehaviour
             }
         }
 
+        // if mouse released, call box select
         if(Mouse.current.leftButton.wasReleasedThisFrame){
             Vector2 dragEnd = Mouse.current.position.ReadValue();
 
             if(!shift){
-                // if holding shift add to current list
+                // FUTURE IDEA: if holding shift add to current list
             }
 
             if(isDragging){
@@ -62,6 +73,7 @@ public class UnitSelectionController : MonoBehaviour
         }
     }
 
+    // single Click logic / select
     private void ClickSelect(bool shift){
         Vector2 mousePos = Mouse.current.position.ReadValue();
 
@@ -85,9 +97,9 @@ public class UnitSelectionController : MonoBehaviour
         }
     }
 
-    private Rect GetScreenRectGUI(Vector2 aScreen, Vector2 bScreen)
-    {
-        // Convert screen space (bottom-left origin) to GUI space (top-left origin)
+    // builds the rectangle we are selcting with
+    private Rect GetScreenRectGUI(Vector2 aScreen, Vector2 bScreen){
+        // convert screen space (bottom-left origin) to GUI space (top-left origin)
         Vector2 a = new Vector2(aScreen.x, Screen.height - aScreen.y);
         Vector2 b = new Vector2(bScreen.x, Screen.height - bScreen.y);
 
@@ -99,8 +111,8 @@ public class UnitSelectionController : MonoBehaviour
         return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
     }
 
-    private void BoxSelect(Vector2 startScreen, Vector2 endScreen, bool additive)
-    {
+    // logic to select groupd of troops in box
+    private void BoxSelect(Vector2 startScreen, Vector2 endScreen, bool additive){
         if (!additive) selection.ClearSelection();
 
         Rect rectGUI = GetScreenRectGUI(startScreen, endScreen);
@@ -114,7 +126,7 @@ public class UnitSelectionController : MonoBehaviour
             Vector3 sp = cam.WorldToScreenPoint(unit.transform.position);
             if (sp.z < 0f) continue;
 
-            // Convert unit position to GUI space too
+            // convert unit position to GUI space too
             Vector2 unitGUI = new Vector2(sp.x, Screen.height - sp.y);
 
             if (rectGUI.Contains(unitGUI))
@@ -122,8 +134,8 @@ public class UnitSelectionController : MonoBehaviour
         }
     }
 
-    private void OnGUI()
-    {
+    // creates the visual rectangle (looks cool)
+    private void OnGUI(){
         if (!isDragging || Mouse.current == null) return;
 
         Vector2 currentScreen = Mouse.current.position.ReadValue();

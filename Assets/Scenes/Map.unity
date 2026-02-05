@@ -173,6 +173,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &9851781
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -348,6 +352,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &36655515
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -555,6 +563,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &172668173
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -686,7 +698,6 @@ GameObject:
   m_Component:
   - component: {fileID: 178894937}
   - component: {fileID: 178894936}
-  - component: {fileID: 178894935}
   m_Layer: 0
   m_Name: GameMaster
   m_TagString: Untagged
@@ -694,21 +705,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &178894935
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 178894934}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b4288840c0844be42bece9581d97a718, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: '::'
-  mouseButton: 1
-  maxRayDistance: 5000
-  moveMarker: {fileID: 1822757600}
 --- !u!114 &178894936
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1084,6 +1080,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &443463113
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1451,6 +1451,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &849225369
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1922,6 +1926,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &1187462303
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2209,6 +2217,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &1687281827
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2414,7 +2426,9 @@ MonoBehaviour:
     m_Bits: 16
   maxRayDistance: 5000
   spacing: 3
-  columns: 5
+  slotArriveRadius: 1
+  holdSpeed: 1
+  enableHoldUntilAllArrive: 1
 --- !u!1 &1775253730
 GameObject:
   m_ObjectHideFlags: 0
@@ -2693,6 +2707,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &1849576361
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -3092,6 +3110,10 @@ MonoBehaviour:
   slowdownRadius: 12
   stoppingDistance: 1.5
   drawGizmos: 1
+  useSpeedLimit: 0
+  speedLimit: 2
+  holdMode: 0
+  holdBrake: 20
 --- !u!54 &2031152676
 Rigidbody:
   m_ObjectHideFlags: 0

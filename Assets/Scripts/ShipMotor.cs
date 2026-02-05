@@ -10,34 +10,38 @@ public class ShipMotor : MonoBehaviour
 
     [Header("Arrival")]
     [SerializeField] private float slowdownRadius = 12f;
-    [SerializeField] private float stoppingDistance = 1.5f;
+    [SerializeField] private float stoppingDistance = 0.5f;
 
     [Header("Debug")]
     [SerializeField] private bool drawGizmos = true;
+
+    [Header("Speed Override (formation hold)")]
+    [SerializeField] private bool useSpeedLimit = false;
+    [SerializeField] private float speedLimit = 0.1f; // used when override active
+
+    [Header("Formation Hold")]
+    [SerializeField] private bool holdMode = false;
+    [SerializeField] private float holdBrake = 20f;
 
     private Rigidbody rb;
 
     private bool hasDestination = false;
     private Vector3 destination;
 
-    private void Awake()
-    {
+    private void Awake(){
         rb = GetComponent<Rigidbody>();
     }
 
-    public void SetDestination(Vector3 worldPoint)
-    {
+    public void SetDestination(Vector3 worldPoint){
         destination = worldPoint;
         hasDestination = true;
     }
 
-    public void ClearDestination()
-    {
+    public void ClearDestination(){
         hasDestination = false;
     }
 
-    private void FixedUpdate()
-    {
+    private void FixedUpdate(){
         if (!hasDestination){
             // slowly slow velocity when idle
             rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, Vector3.zero, 0.05f);
@@ -51,6 +55,12 @@ public class ShipMotor : MonoBehaviour
         float distance = toTarget.magnitude;
 
         if (distance < stoppingDistance){
+            if(holdMode){
+                // in hold mode, keep destination active so the ship continues correcting
+                // but brake hard to prevent drifting/pushing.
+                rb.linearVelocity = Vector3.MoveTowards(rb.linearVelocity, Vector3.zero, holdBrake * Time.fixedDeltaTime);
+                return;
+            }
             rb.linearVelocity = Vector3.zero;
             hasDestination = false;
             return;
@@ -70,13 +80,18 @@ public class ShipMotor : MonoBehaviour
         float targetSpeed = maxSpeed;
         if (distance < slowdownRadius){
             float t = Mathf.Clamp01(distance / slowdownRadius);
-            targetSpeed = Mathf.Lerp(0.5f, maxSpeed, t);
+            targetSpeed = Mathf.Lerp(0f, maxSpeed, t);
         }
 
         // slow down while turning sharply
         float angle = Vector3.Angle(transform.forward, desiredDir);
         float turnSlowFactor = Mathf.Lerp(1f, 0.4f, Mathf.Clamp01(angle / 90f));
         targetSpeed *= turnSlowFactor;
+
+        // slow if getting in formation
+        if (useSpeedLimit){
+            targetSpeed = Mathf.Min(targetSpeed, speedLimit);
+        }
 
         // accelerate toward target speed
         Vector3 desiredVelocity = transform.forward * targetSpeed;
@@ -87,12 +102,10 @@ public class ShipMotor : MonoBehaviour
 
     }
 
-    private void OnDrawGizmos()
-    {
+    private void OnDrawGizmos(){
         if (!drawGizmos) return;
 
-        if (hasDestination)
-        {
+        if(hasDestination){
             Gizmos.color = Color.yellow;
             Gizmos.DrawSphere(destination, 0.5f);
             Gizmos.DrawLine(transform.position, destination);
@@ -100,6 +113,22 @@ public class ShipMotor : MonoBehaviour
     }
 
 
+    public void SetSpeedLimit(float limit){
+        useSpeedLimit = true;
+        speedLimit = Mathf.Max(0f, limit);
+    }
 
+    public void ClearSpeedLimit(){
+        useSpeedLimit = false;
+    }
     
+    public void EnterHold(float limitSpeed){
+        holdMode = true;
+        SetSpeedLimit(limitSpeed); // reuse your existing speed limit
+    }
+
+    public void ExitHold(){
+        holdMode = false;
+        ClearSpeedLimit();
+    }
 }

@@ -3,35 +3,42 @@ using UnityEngine;
 
 public class SelectionManager : MonoBehaviour
 {
-    
+    // **********************************************************
+    // HOLD LIST OF CURRENTLY SELECTED SHIPS
+    // THIS IS THE ONLY THING THAT CAN ADD/REMOVE FROM THAT LIST
+    // **********************************************************
+
+    // the list
     private readonly List<SelectableUnit> selected = new List<SelectableUnit>();
 
+    // command which return the list
     public IReadOnlyList<SelectableUnit> Selected => selected;
 
-    public void ClearSelection()
-    {
-        for (int i = 0; i < selected.Count; i++)
+    // go through and deselect everything in list
+    public void ClearSelection(){
+        for(int i = 0; i < selected.Count; i++){
             selected[i].SetSelected(false);
+        }
         selected.Clear();
     }
 
-    public void AddToSelection(SelectableUnit unit)
-    {
-        if (unit == null) return;
-        if (selected.Contains(unit)) return;
+    // add input to the select list
+    public void AddToSelection(SelectableUnit unit){
+        if(unit == null) return;                // check input
+        if(selected.Contains(unit)) return;     // check already in list
         selected.Add(unit);
         unit.SetSelected(true);
     }
 
-    public void RemoveFromSelection(SelectableUnit unit)
-    {
+    // remove input from select list
+    public void RemoveFromSelection(SelectableUnit unit){
         if (unit == null) return;
         if (!selected.Remove(unit)) return;
         unit.SetSelected(false);
     }
 
-    public void SetSelectionSingle(SelectableUnit unit)
-    {
+    // when you single click, make only that new click in list
+    public void SetSelectionSingle(SelectableUnit unit){
         ClearSelection();
         AddToSelection(unit);
     }
