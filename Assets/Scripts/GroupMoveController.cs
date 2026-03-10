@@ -1,193 +1,253 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class GroupMoveController : MonoBehaviour
 {
-
-    // *********************************************
-    // HANDLES MOVE ORDERS WHEN RIGHT CLICKING
-    // GRABS UNIT FROM SELECTED LIST AND SEND TO
-    // CLICK POINT
-    // *********************************************
-
     [Header("References")]
-    [SerializeField] private SelectionManager selection;        // reference to list
-    [SerializeField] private Camera cam;                        // reference to main camera
+    [SerializeField] private SelectionManager selection;
+    [SerializeField] private Camera cam;
 
     [Header("Raycast")]
-    [SerializeField] private LayerMask waterMask;               // layer we want to click on (our water/ocean)
-    [SerializeField] private float maxRayDistance = 5000f;      // arbitrary check distance
+    [SerializeField] private LayerMask waterMask;
+    [SerializeField] private float maxRayDistance = 5000f;
 
-    [Header("Formation")]
-    [SerializeField] private float spacing = 4f;     // distance between ships in formation
-    [SerializeField] private float slotArriveRadius = 0.5f;     // in position distance
-    [SerializeField] private float holdSpeed = 0.8f;            // speed cap while waiting
-    [SerializeField] private bool enableHoldUntilAllArrive = true;
-    
+    [Header("Multi-Group Movement")]
+    [SerializeField] private float splitClusterDistance = 40f;   // if selected ships are farther than this, they become separate path groups
+    [SerializeField] private float slotSpacing = 5f;             // spacing between final slots around the destination
+    [SerializeField] private float groupRingSpacing = 12f;       // how far apart groups land around the destination
 
-private Dictionary<SelectableUnit, Vector3> currentSlots = new();
-private bool formationActive = false;
+    [Header("Grid")]
+    [SerializeField] private NavGrid navGrid;
+    [SerializeField] private LayerMask staticObstacleMask; // for smoothing line-of-sight
+    [SerializeField] private float agentRadius = 1.5f;
+    [SerializeField] private bool smoothPath = true;
 
-    // initial set up
+    [Header("Independent Pathing")]
+    [SerializeField] private float independentPathDistance = 50f;  // distance threshold for individual pathing
+
     private void Awake(){
-        if(selection == null) selection = FindFirstObjectByType<SelectionManager>();
-        if(cam == null) cam = Camera.main;
+        if (selection == null) selection = FindFirstObjectByType<SelectionManager>();
+        if (cam == null) cam = Camera.main;
+        if (navGrid == null) navGrid = FindFirstObjectByType<NavGrid>();
     }
 
-    // update function which happens every frame
     private void Update(){
-        if(cam == null || selection == null) return;
-        if(Mouse.current == null) return;
+        if (cam == null || selection == null) return;
+        if (Mouse.current == null) return;
+        if (!Mouse.current.rightButton.wasPressedThisFrame) return;
+        if (selection.Selected.Count == 0) return;
 
-        // if we right click move group
-        if(Mouse.current.rightButton.wasPressedThisFrame){
-            if (selection.Selected.Count == 0) return;
+        Vector2 mousePos = Mouse.current.position.ReadValue();
+        Ray ray = cam.ScreenPointToRay(mousePos);
 
-            Vector2 mousePos = Mouse.current.position.ReadValue();
-            Ray ray = cam.ScreenPointToRay(mousePos);
+        if (!Physics.Raycast(ray, out RaycastHit hit, maxRayDistance, waterMask)) return;
 
-            if (Physics.Raycast(ray, out RaycastHit hit, maxRayDistance, waterMask)){
-                IssueGroupMove(hit.point);
+        IssueGroupMove(hit.point);
+    }
+
+    private void IssueGroupMove(Vector3 destination){
+        var units = selection.Selected;
+        if (units.Count == 0) return;
+        if (navGrid == null) navGrid = FindFirstObjectByType<NavGrid>();
+
+        // Always hard-reset previous move state so multiple move commands work.
+        for (int i = 0; i < units.Count; i++){
+            var m = units[i]?.Motor;
+            if (m == null) continue;
+            m.ClearDestination();
+        }
+
+        // Split selection into spatial clusters so far-apart packs can path independently.
+        var groups = BuildClusters(units, splitClusterDistance);
+        if (groups.Count == 0) return;
+
+        // One A* per cluster. Each cluster lands on a different ring around the destination.
+        for (int gi = 0; gi < groups.Count; gi++){
+            var group = groups[gi];
+            if (group.Count == 0) continue;
+
+            Vector3 groupLandingCenter = ComputeGroupLandingCenter(destination, gi);
+
+            // Build final slot positions (formation) for this group.
+            var slots = BuildSlots(group.Count, groupLandingCenter, slotSpacing);
+
+            // Choose a per-group start anchor to run A* from (closest ship to group centroid)
+            var startUnit = PickGroupStartUnit(group);
+            if (startUnit == null) continue;
+
+            var basePath = GridPathfinder.FindPath(
+                navGrid,
+                startUnit.transform.position,
+                groupLandingCenter,
+                smoothPath,
+                staticObstacleMask,
+                agentRadius
+            );
+
+            // Assign each ship its OWN path: base path + ship-specific final slot.
+            for (int i = 0; i < group.Count; i++){
+                var u = group[i];
+                if (u == null) continue;
+                var m = u.Motor;
+                if (m == null) continue;
+
+                // Check if ship should use independent path
+                bool shouldUseIndependentPath = false;
+                
+                // Check distance to start unit
+                float distToStart = Vector3.Distance(u.transform.position, startUnit.transform.position);
+                if (distToStart > independentPathDistance){
+                    shouldUseIndependentPath = true;
+                }
+                
+                // Check if ship can reach the group path's starting line segment
+                if (!shouldUseIndependentPath && basePath.Count > 1){
+                    Vector3 shipPos = u.transform.position;
+                    Vector3 lineStart = basePath[0];
+                    Vector3 lineEnd = basePath[1];
+                    
+                    // Try to find path to the line segment
+                    Vector3 closestPointOnLine = GetClosestPointOnLineSegment(shipPos, lineStart, lineEnd);
+                    var pathToLine = GridPathfinder.FindPath(navGrid, shipPos, closestPointOnLine, smoothPath, staticObstacleMask, agentRadius);
+                    
+                    // If path is blocked or too long, use independent path
+                    if (pathToLine == null || pathToLine.Count <= 1 || Vector3.Distance(shipPos, pathToLine[pathToLine.Count - 1]) > 1f){
+                        shouldUseIndependentPath = true;
+                    }
+                }
+                
+                System.Collections.Generic.List<Vector3> shipPath;
+                if (shouldUseIndependentPath){
+                    // Generate individual path from ship to its slot
+                    shipPath = GridPathfinder.FindPath(navGrid, u.transform.position, slots[i], smoothPath, staticObstacleMask, agentRadius);
+                } else {
+                    // Use group path with ship-specific final slot
+                    shipPath = CopyPathWithFinalSlot(basePath, slots[i]);
+                }
+                
+                m.SetPath(shipPath);
             }
         }
-        if (formationActive){
-            UpdateFormationHold();
-        }
     }
 
-    // move all selected units to point
-    private void IssueGroupMove(Vector3 anchor){
+    private System.Collections.Generic.List<System.Collections.Generic.List<SelectableUnit>> BuildClusters(
+        System.Collections.Generic.IReadOnlyList<SelectableUnit> units,
+        float maxLinkDistance
+    ){
+        var groups = new System.Collections.Generic.List<System.Collections.Generic.List<SelectableUnit>>();
+        if (units == null || units.Count == 0) return groups;
 
-        var units = selection.Selected;             // get all units currently selected
+        float maxLinkSqr = maxLinkDistance * maxLinkDistance;
+        var visited = new System.Collections.Generic.HashSet<SelectableUnit>();
 
-        // compute facing: from group center to anchor (so formation faces the move direction)
-        Vector3 center = ComputeCenter(units);
-        Vector3 forward = (anchor - center);
-        forward.y = 0f;
-        if (forward.sqrMagnitude < 0.001f) forward = cam.transform.forward; // fallback
-        forward.y = 0f;
-        forward.Normalize();
+        for (int i = 0; i < units.Count; i++){
+            var seed = units[i];
+            if (seed == null || visited.Contains(seed)) continue;
 
-        Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+            var group = new System.Collections.Generic.List<SelectableUnit>();
+            var queue = new System.Collections.Generic.Queue<SelectableUnit>();
+            queue.Enqueue(seed);
+            visited.Add(seed);
 
-        // generate N formation slots (grid)
-        List<Vector3> slots = GenerateDiscSlots(anchor, units.Count);
+            while (queue.Count > 0){
+                var cur = queue.Dequeue();
+                if (cur == null) continue;
+                group.Add(cur);
 
-        // assign units to closest slots (greedy)
-        AssignGreedy(units, slots);
-    }
-
-    // compute center of all selected units
-    private Vector3 ComputeCenter(IReadOnlyList<SelectableUnit> units){
-        Vector3 sum = Vector3.zero;
-        for (int i = 0; i < units.Count; i++)
-            sum += units[i].transform.position;
-        return sum / Mathf.Max(1, units.Count);
-    }
-
-    // creat spots around anchor for ships to fill
-    private List<Vector3> GenerateDiscSlots(Vector3 anchor, int n){
-        
-        List<Vector3> slots = new List<Vector3>(n);
-        if (n <= 0) return slots;
-
-        int placed = 0;
-        int ring = 1;
-
-        while (placed < n){
-            float radius = ring * spacing;
-            // choose how many points on this ring (roughly circumference / spacing)
-            int ringCount = Mathf.Max(6, Mathf.RoundToInt((2f * Mathf.PI * radius) / spacing));
-
-            for(int i = 0; i < ringCount && placed < n; i++){
-                float angle = (i / (float)ringCount) * Mathf.PI * 2f;
-                Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
-                slots.Add(anchor + offset);
-                placed++;
+                Vector3 cp = cur.transform.position;
+                for (int j = 0; j < units.Count; j++){
+                    var other = units[j];
+                    if (other == null || visited.Contains(other)) continue;
+                    if ((other.transform.position - cp).sqrMagnitude <= maxLinkSqr){
+                        visited.Add(other);
+                        queue.Enqueue(other);
+                    }
+                }
             }
-            ring++;
+
+            groups.Add(group);
+        }
+
+        return groups;
+    }
+
+    private SelectableUnit PickGroupStartUnit(System.Collections.Generic.List<SelectableUnit> group){
+        if (group == null || group.Count == 0) return null;
+
+        Vector3 c = Vector3.zero;
+        int n = 0;
+        for (int i = 0; i < group.Count; i++){
+            if (group[i] == null) continue;
+            c += group[i].transform.position;
+            n++;
+        }
+        if (n <= 0) return group[0];
+        c /= n;
+
+        SelectableUnit bestU = group[0];
+        float best = float.MaxValue;
+        for (int i = 0; i < group.Count; i++){
+            var u = group[i];
+            if (u == null) continue;
+            float d = (u.transform.position - c).sqrMagnitude;
+            if (d < best){ best = d; bestU = u; }
+        }
+        return bestU;
+    }
+
+    private Vector3 ComputeGroupLandingCenter(Vector3 destination, int groupIndex){
+        if (groupIndex <= 0) return destination;
+
+        int ring = 1 + (groupIndex - 1) / 6;
+        int posInRing = (groupIndex - 1) % 6;
+        float angle = (posInRing / 6f) * Mathf.PI * 2f;
+        float radius = ring * groupRingSpacing;
+
+        Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+        return destination + offset;
+    }
+
+    private System.Collections.Generic.List<Vector3> BuildSlots(int count, Vector3 center, float spacing){
+        var slots = new System.Collections.Generic.List<Vector3>(count);
+        if (count <= 0) return slots;
+
+        int cols = Mathf.CeilToInt(Mathf.Sqrt(count));
+        int rows = Mathf.CeilToInt(count / (float)cols);
+        float halfW = (cols - 1) * 0.5f;
+        float halfH = (rows - 1) * 0.5f;
+
+        for (int i = 0; i < count; i++){
+            int x = i % cols;
+            int z = i / cols;
+            float ox = (x - halfW) * spacing;
+            float oz = (z - halfH) * spacing;
+            slots.Add(center + new Vector3(ox, 0f, oz));
         }
 
         return slots;
     }
 
-    // assign ships to calulated spots
-    private void AssignGreedy(IReadOnlyList<SelectableUnit> units, List<Vector3> slots){
+    private System.Collections.Generic.List<Vector3> CopyPathWithFinalSlot(System.Collections.Generic.List<Vector3> basePath, Vector3 slot){
+        var p = new System.Collections.Generic.List<Vector3>();
+
+        if (basePath != null && basePath.Count > 0){
+            p.AddRange(basePath);
+            p[p.Count - 1] = slot; // ship-specific final landing point
+        } else {
+            p.Add(slot);
+        }
+
+        return p;
+    }
+
+    private Vector3 GetClosestPointOnLineSegment(Vector3 point, Vector3 lineStart, Vector3 lineEnd){
+        Vector3 lineDir = lineEnd - lineStart;
+        float lineLengthSq = lineDir.sqrMagnitude;
+        if (lineLengthSq < 0.0001f) return lineStart; // degenerate line
         
-        currentSlots.Clear();
-        List<Vector3> freeSlots = new List<Vector3>(slots);
-
-        for(int i = 0; i < units.Count; i++){
-            SelectableUnit unit = units[i];
-
-            int bestIndex = 0;
-            float bestDist = float.MaxValue;
-
-            for(int s = 0; s < freeSlots.Count; s++){
-                float d = (unit.transform.position - freeSlots[s]).sqrMagnitude;
-                if (d < bestDist){
-                    bestDist = d;
-                    bestIndex = s;
-                }
-            }
-
-            Vector3 chosen = freeSlots[bestIndex];
-            freeSlots.RemoveAt(bestIndex);
-
-            currentSlots[unit] = chosen;
-
-            if (unit.Motor != null){
-                unit.Motor.ExitHold();     // clears any previous hold state
-                unit.Motor.SetDestination(chosen);
-            }
-        }
-
-        formationActive = enableHoldUntilAllArrive;
+        float t = Vector3.Dot(point - lineStart, lineDir) / lineLengthSq;
+        t = Mathf.Clamp01(t); // clamp to segment bounds
+        
+        return lineStart + lineDir * t;
     }
-
-    private void UpdateFormationHold(){
-        if (currentSlots.Count == 0){
-            formationActive = false;
-            return;
-        }
-
-        bool allArrived = true;
-
-        foreach(var kvp in currentSlots){
-            SelectableUnit unit = kvp.Key;
-            Vector3 slot = kvp.Value;
-
-            if(unit == null || unit.Motor == null) continue;
-
-            Vector3 pos = unit.transform.position;
-            pos.y = 0f;
-            Vector3 target = slot;
-            target.y = 0f;
-
-            float dist = Vector3.Distance(pos, target);
-
-            bool arrived = dist <= slotArriveRadius;
-
-            if (!arrived){
-                allArrived = false;
-                unit.Motor.ExitHold();
-            }else{
-                // ff not everyone has arrived yet, cap speed so it holds nicely
-                unit.Motor.EnterHold(holdSpeed);
-            }
-        }
-
-        if (allArrived){
-            // everyone is in formation: release speed limits
-            foreach (var kvp in currentSlots){
-                if (kvp.Key != null && kvp.Key.Motor != null)
-                    kvp.Key.Motor.ExitHold();
-            }
-
-            formationActive = false;
-        }
-    }
-
-
 }
