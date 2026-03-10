@@ -156,16 +156,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e98a85c2f1cd3143ae3fcdbb36ee301, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipMotor
-  maxSpeed: 8
-  acceleration: 6
-  turnRateDegPerSec: 90
   slowdownRadius: 12
   stoppingDistance: 1.5
+  anchorOnArrival: 1
+  anchorSnapSpeed: 25
+  unitMask:
+    serializedVersion: 2
+    m_Bits: 2048
+  anchorInfluenceRadius: 14
+  extraStopPerAnchored: 1
+  maxExtraStop: 6
+  relaxOnlyNearDestination: 1
+  relaxNearDistance: 20
+  waypointArriveDist: 2
+  waypointLookahead: 6
+  steerFadeNear: 8
+  dirSmoothing: 10
   drawGizmos: 1
-  useSpeedLimit: 0
-  speedLimit: 2
-  holdMode: 0
-  holdBrake: 20
 --- !u!114 &2800310335978290423
 MonoBehaviour:
   m_ObjectHideFlags: 0
