@@ -9,8 +9,13 @@ public class ShipState : MonoBehaviour
     
     [Header("Definition")]
     [SerializeField] private ShipDefinition def;        // pull info from ship def defined in ship prefabs
+    
+    [Header("Faction")]
+    [SerializeField] private Faction faction;
 
     public ShipDefinition Definition => def;
+    public Faction Faction => faction;
+    public void SetFaction(Faction newFaction) => faction = newFaction;
 
     public float Hull { get; private set; }
     public float CrewHP { get; private set; }
@@ -36,6 +41,9 @@ public class ShipState : MonoBehaviour
 
         OnHullChanged?.Invoke(Hull, def.maxHull);
         if (def.hasShields) OnShieldsChanged?.Invoke(Shields, def.maxShields);
+        
+        // Register with FactionManager
+        FactionManager.Instance.RegisterShip(this);
     }
 
     // only really needed for rechaging shiled (if we want)
@@ -94,6 +102,9 @@ public class ShipState : MonoBehaviour
     private void Sink(){
         if (IsSunk) return;
         IsSunk = true;
+
+        // Unregister from FactionManager
+        FactionManager.Instance.UnregisterShip(this);
 
         // stop movement
         var motor = GetComponent<ShipMotor>();

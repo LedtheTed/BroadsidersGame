@@ -26,6 +26,13 @@ public class SelectionManager : MonoBehaviour
     public void AddToSelection(SelectableUnit unit){
         if(unit == null) return;                // check input
         if(selected.Contains(unit)) return;     // check already in list
+        
+        // check if unit is from the player faction
+        ShipState shipState = unit.GetComponent<ShipState>();
+        if (shipState != null && !FactionManager.Instance.IsPlayerShip(shipState)) {
+            return;  // cannot select enemy ships
+        }
+        
         selected.Add(unit);
         unit.SetSelected(true);
     }

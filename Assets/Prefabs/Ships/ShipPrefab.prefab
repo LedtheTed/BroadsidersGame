@@ -169,8 +169,6 @@ MonoBehaviour:
   relaxOnlyNearDestination: 1
   relaxNearDistance: 20
   waypointArriveDist: 2
-  waypointLookahead: 6
-  steerFadeNear: 8
   dirSmoothing: 10
   drawGizmos: 1
 --- !u!114 &2800310335978290423
@@ -200,6 +198,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipState
   def: {fileID: 11400000, guid: c769041ec27bc1a4584bc111e8ed3fc5, type: 2}
+  faction: {fileID: 0}
 --- !u!1 &230350454985712003
 GameObject:
   m_ObjectHideFlags: 0
@@ -308,7 +307,7 @@ SphereCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}

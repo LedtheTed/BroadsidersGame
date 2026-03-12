@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e5862ce09eee3c41aba4c00a1f4c850, type: 3}
+  m_Name: Player
+  m_EditorClassIdentifier: Assembly-CSharp::Faction
+  factionName: Player
+  factionColor: {r: 0.3428046, g: 1, b: 0.19339621, a: 1}
+  factionID: 0
