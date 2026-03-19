@@ -7,6 +7,8 @@ public class GameMaster : MonoBehaviour
 {
     
     public static GameMaster Instance { get; private set; }
+    public ChunkManager chunkManager;
+
 
     [Header("Scene Management")]
     [SerializeField] private Camera mainCamera;
@@ -31,7 +33,10 @@ public class GameMaster : MonoBehaviour
         }
         Instance = this;
 
-        if(mainCamera == null){
+        if (chunkManager == null)
+            chunkManager = GetComponent<ChunkManager>();
+
+        if (mainCamera == null){
             mainCamera = Camera.main;
         }
         
